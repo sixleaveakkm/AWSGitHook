@@ -1,0 +1,13 @@
+# Serverless directories
+.serverless
+
+# golang output binary directory
+bin
+
+# test functions
+src/test
+
+# Test binary, build with `go test -c`
+*.test
+
+.idea

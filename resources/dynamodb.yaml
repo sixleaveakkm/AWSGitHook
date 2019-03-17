@@ -1,0 +1,18 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  WebHookTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ${self:custom.tableName}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: repository
+          AttributeType: S
+        - AttributeName: events
+          AttributeType: S
+          # sperate each event name with ",", allowed names are "push" "pull_request" "commit"
+      KeySchema:
+        - AttributeName: repository
+          KeyType: HASH
+        - AttributeName: events
+          KeyType: HASH

@@ -12,3 +12,9 @@ This project creates a serverless webhook reciever for Git Service.
 - id password
 - server send webhook request to url 
 - 
+
+## DynamoDB
+
+|   PK       | SK |  |
+|------------|--|--|
+| repository | events |   
