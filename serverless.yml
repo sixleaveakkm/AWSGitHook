@@ -4,6 +4,7 @@ frameworkVersion: ">=1.28.0 <2.0.0"
 custom:
   stage: ${opt:stage, self:provider.stage}
   tableName: RegistedRepositories-${self:custom.stage}
+  region: ap-northeast-1
 
 provider:
   stage: dev
@@ -44,7 +45,8 @@ provider:
 
 # you can define service wide environment variables here
   environment:
-    tableName: ${self:custom.tableName}
+    TABLENAME: ${self:custom.tableName}
+    REGION: ${self:custom.region}
 
 package:
  exclude:
