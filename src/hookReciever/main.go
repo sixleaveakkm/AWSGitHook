@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	lambdaSDK "github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/thedevsaddam/gojsonq"
 	"log"
 	"os"
@@ -24,6 +25,7 @@ type Credential struct {
 	Secret   string `json:"secret"`
 }
 type HookEvent struct {
+	ProjectName       string     `json:"projectName"`
 	Event             string     `json:"event"`
 	SourceBranch      string     `json:"source"`
 	DestinationBranch string     `json:"destination"`
@@ -31,13 +33,11 @@ type HookEvent struct {
 	CommentAuthor     string     `json:"commentAuthor"`
 	Uuid              string     `json:"uuid"`
 	CommitId          string     `json:"commitId"`
+	PullRequestId     string     `json:"pullRequestId"`
 	Credential        Credential `json:"credential"`
 }
 
-func isHookRegistered(repositoryName string, hookPtr *HookEvent) bool {
-	sess := session.Must(session.NewSession(&aws.Config{
-		Region: aws.String(os.Getenv("REGION")),
-	}))
+func isHookRegistered(repositoryName string, hookPtr *HookEvent, sess *session.Session) bool {
 	svc := dynamodb.New(sess)
 	input := &dynamodb.GetItemInput{
 		Key: map[string]*dynamodb.AttributeValue{
@@ -85,6 +85,7 @@ func isHookRegistered(repositoryName string, hookPtr *HookEvent) bool {
 			hookPtr.Credential.Category = *items["CredCategory"].S
 			hookPtr.Credential.Key = *items["CredKey"].S
 			hookPtr.Credential.Secret = *items["CredSecret"].S
+			hookPtr.ProjectName = *items["ProjectName"].S
 			return true
 		}
 		return false
@@ -94,6 +95,7 @@ func isHookRegistered(repositoryName string, hookPtr *HookEvent) bool {
 			hookPtr.Credential.Category = *items["CredCategory"].S
 			hookPtr.Credential.Key = *items["CredKey"].S
 			hookPtr.Credential.Secret = *items["CredSecret"].S
+			hookPtr.ProjectName = *items["ProjectName"].S
 			return true
 		}
 		return *items["DestinationBranch"].S == hookPtr.DestinationBranch
@@ -129,6 +131,7 @@ func isHookRegistered(repositoryName string, hookPtr *HookEvent) bool {
 		hookPtr.Credential.Category = *items["CredCategory"].S
 		hookPtr.Credential.Key = *items["CredKey"].S
 		hookPtr.Credential.Secret = *items["CredSecret"].S
+		hookPtr.ProjectName = *items["ProjectName"].S
 		return true
 	default:
 		log.Println("hook event no match")
@@ -158,6 +161,7 @@ func getHookEvent(gitFlavour string, request *Request) (*HookEvent, bool) { // i
 			hookPtr.DestinationBranch = jsonQ.Find("pullrequest.destination.branch").(string)
 			hookPtr.Uuid = request.Headers["X-Request-UUID"]
 			hookPtr.CommitId = jsonQ.Find("pullrequest.source.commits.links.html").(string)
+			hookPtr.PullRequestId = jsonQ.Find("pullrequest.id").(string)
 			if jsonQ.Find("comment") != nil {
 				hookPtr.Comment = jsonQ.Find("comment.content.raw").(string)
 				hookPtr.CommentAuthor = jsonQ.Find("actor.uuid").(string)
@@ -234,7 +238,11 @@ func HookReceiver(_ context.Context, request Request) (Response, error) {
 		return response410("Hook data not found"), nil
 	}
 
-	if !isHookRegistered(repositoryName, hookEventPtr) {
+	sess := session.Must(session.NewSession(&aws.Config{
+		Region: aws.String(os.Getenv("REGION")),
+	}))
+
+	if !isHookRegistered(repositoryName, hookEventPtr, sess) {
 		return Response{
 			StatusCode:      204,
 			IsBase64Encoded: false,
@@ -245,7 +253,33 @@ func HookReceiver(_ context.Context, request Request) (Response, error) {
 		}, nil
 	}
 
+	eventKey := ""
+	eventArr := strings.Split(hookEventPtr.Event, ":")
+	if eventArr[0] == "pullrequest" {
+		eventKey = "pullrequest-" + hookEventPtr.PullRequestId
+	} else if eventArr[1] == "push" {
+		eventKey = "push-" + hookEventPtr.SourceBranch
+	}
+	bucketKey := strings.Join([]string{
+		repositoryName,
+		eventKey,
+		hookEventPtr.Uuid,
+	}, "/")
+	// export json to file: UUid
 	jsonStr, err := json.Marshal(*hookEventPtr)
+	if err != nil {
+		log.Fatalf("Error when marshal json: %+v\n", err)
+	} else {
+		lambdaExecuter := lambdaSDK.New(sess)
+		invocationType := "Event"
+		functionName := os.Getenv("CONTAINER_EXECUTER_NAME")
+		output, err := lambdaExecuter.Invoke(&lambdaSDK.InvokeInput{
+			FunctionName:   &functionName,
+			InvocationType: &invocationType,
+			Payload:        jsonStr,
+		})
+	}
+
 	return Response{
 		StatusCode:      200,
 		IsBase64Encoded: false,

@@ -5,19 +5,21 @@ custom:
   stage: ${opt:stage, self:provider.stage}
   tableName: RegistedRepositories-${self:custom.stage}
   region: ap-northeast-1
+  triggerBucket: ${file(./config.yml):triggerBucket}
+  deploymentBucket: ${file(./config.yml):deploymentBucket}
 
 provider:
   stage: dev
-  name: aws
+  name: AWSGitHook
   runtime: go1.x
   region: ap-northeast-1
   memorySize: 128
   deploymentBucket:
-    name:
+    name: ${self:custom.deploymentBucket}
     serverSideEncryption: AES256
-    tags:
-      Product: GitHook
-      Environment: dev
+  tags:
+    Product: GitHook
+    Environment: dev
 
 # you can add statements to the Lambda function's IAM Role here
   iamRoleStatements:
@@ -32,21 +34,11 @@ provider:
         - dynamodb:DeleteItem
       Resource:
         - "Fn::GetAtt": [ WebHookTable, Arn ]
-
-#    - Effect: "Allow"
-#      Action:
-#        - "s3:PutObject"
-#      Resource:
-#        Fn::Join:
-#          - ""
-#          - - "arn:aws:s3:::"
-#            - "Ref" : "ServerlessDeploymentBucket"
-#            - "/*"
-
 # you can define service wide environment variables here
   environment:
     TABLENAME: ${self:custom.tableName}
     REGION: ${self:custom.region}
+    TRIGGERBUCKET: ${self:custom.triggerBucket}
 
 package:
  exclude:
@@ -55,12 +47,18 @@ package:
    - ./bin/**
 
 functions:
-  hookReciever:
+  hookReceiver:
     handler: bin/hookReciever
+    name: ${self:provider.name}-hookReceiver
+    environment:
+      CONTAINER_EXECUTER_NAME: ${self:functions.containerExecuter.name}
     events:
       - http:
           path: /hooks
           method: POST
+  containerExecuter:
+    handler: bin/containerExecuter
+    name: ${self:provider.name}-containerExecuter
   oAuthCallBack:
     handler: bin/oauthCallback
     events:
