@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
@@ -17,12 +18,20 @@ import (
 type Response events.APIGatewayProxyResponse
 type Request events.APIGatewayProxyRequest
 
+type Credential struct {
+	Category string `json:"category"` // bitbucket:oauth
+	Key      string `json:"key"`
+	Secret   string `json:"secret"`
+}
 type HookEvent struct {
-	Event             string
-	SourceBranch      string
-	DestinationBranch string
-	Comment           string
-	CommentAuthor     string
+	Event             string     `json:"event"`
+	SourceBranch      string     `json:"source"`
+	DestinationBranch string     `json:"destination"`
+	Comment           string     `json:"comment"`
+	CommentAuthor     string     `json:"commentAuthor"`
+	Uuid              string     `json:"uuid"`
+	CommitId          string     `json:"commitId"`
+	Credential        Credential `json:"credential"`
 }
 
 func isHookRegistered(repositoryName string, hookPtr *HookEvent) bool {
@@ -73,19 +82,22 @@ func isHookRegistered(repositoryName string, hookPtr *HookEvent) bool {
 	switch hookPtr.Event {
 	case "repo:push":
 		if items["SourceBranch"] != nil && *items["SourceBranch"].S == hookPtr.SourceBranch {
+			hookPtr.Credential.Category = *items["CredCategory"].S
+			hookPtr.Credential.Key = *items["CredKey"].S
+			hookPtr.Credential.Secret = *items["CredSecret"].S
 			return true
 		}
 		return false
 	case "pullrequest:created", "pullrequset:updated", "pullrequest:fulfilled", "pullrequest:rejected":
 		if items["DestinationBranch"] == nil {
 			// no branch specify
+			hookPtr.Credential.Category = *items["CredCategory"].S
+			hookPtr.Credential.Key = *items["CredKey"].S
+			hookPtr.Credential.Secret = *items["CredSecret"].S
 			return true
 		}
-		if *items["DestinationBranch"].S == hookPtr.DestinationBranch {
-			return true
-		} else {
-			return false
-		}
+		return *items["DestinationBranch"].S == hookPtr.DestinationBranch
+
 	case "pullrequest:comment_created", "pullrequest:comment_updated", "pullrequest:comment_deleted":
 		if items["DestinationBranch"] != nil && *items["DestinationBranch"].S != hookPtr.DestinationBranch {
 			return false
@@ -114,6 +126,9 @@ func isHookRegistered(repositoryName string, hookPtr *HookEvent) bool {
 				return false
 			}
 		}
+		hookPtr.Credential.Category = *items["CredCategory"].S
+		hookPtr.Credential.Key = *items["CredKey"].S
+		hookPtr.Credential.Secret = *items["CredSecret"].S
 		return true
 	default:
 		log.Println("hook event no match")
@@ -132,13 +147,17 @@ func getHookEvent(gitFlavour string, request *Request) (*HookEvent, bool) { // i
 		case "repo":
 			if eventArr[1] == "push" {
 				hookPtr.Event = eventStr
-				hookPtr.SourceBranch = jsonQ.Find("new.name").(string)
+				hookPtr.SourceBranch = jsonQ.Find("push.changes[0].new.name").(string)
 				hookPtr.DestinationBranch = hookPtr.SourceBranch
+				hookPtr.Uuid = request.Headers["X-Request-UUID"]
+				hookPtr.CommitId = jsonQ.Find("push.changes[0].links.commits.href").(string)
 			}
 		case "pullrequest":
 			hookPtr.Event = eventStr
-			hookPtr.SourceBranch = jsonQ.Find("repository.source.branch").(string)
-			hookPtr.DestinationBranch = jsonQ.Find("repository.destination.branch").(string)
+			hookPtr.SourceBranch = jsonQ.Find("pullrequest.source.branch").(string)
+			hookPtr.DestinationBranch = jsonQ.Find("pullrequest.destination.branch").(string)
+			hookPtr.Uuid = request.Headers["X-Request-UUID"]
+			hookPtr.CommitId = jsonQ.Find("pullrequest.source.commits.links.html").(string)
 			if jsonQ.Find("comment") != nil {
 				hookPtr.Comment = jsonQ.Find("comment.content.raw").(string)
 				hookPtr.CommentAuthor = jsonQ.Find("actor.uuid").(string)
@@ -219,12 +238,14 @@ func HookReceiver(_ context.Context, request Request) (Response, error) {
 		return Response{
 			StatusCode:      204,
 			IsBase64Encoded: false,
-			Body:            "",
+			Body:            "Pattern not match",
 			Headers: map[string]string{
 				"Content-Type": "application/json",
 			},
 		}, nil
 	}
+
+	jsonStr, err := json.Marshal(*hookEventPtr)
 	return Response{
 		StatusCode:      200,
 		IsBase64Encoded: false,
