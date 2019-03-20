@@ -1,2 +1,3 @@
+service: AWSGitHook
 triggerBucket: private-webhook-bucket
 deploymentBucket: private-ci-serverless-deployment

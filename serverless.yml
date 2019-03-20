@@ -1,18 +1,19 @@
-service: aws-git-hook
+service: ${file(./config.yml):service}
 frameworkVersion: ">=1.28.0 <2.0.0"
 
 custom:
-  stage: ${opt:stage, self:provider.stage}
+  stage: dev
   tableName: RegistedRepositories-${self:custom.stage}
   region: ap-northeast-1
   triggerBucket: ${file(./config.yml):triggerBucket}
   deploymentBucket: ${file(./config.yml):deploymentBucket}
 
 provider:
-  stage: dev
-  name: AWSGitHook
+  stage: ${self:custom.stage}
+  name: aws
   runtime: go1.x
   region: ap-northeast-1
+  profile: personal
   memorySize: 128
   deploymentBucket:
     name: ${self:custom.deploymentBucket}
@@ -21,7 +22,7 @@ provider:
     Product: GitHook
     Environment: dev
 
-# you can add statements to the Lambda function's IAM Role here
+  # you can add statements to the Lambda function's IAM Role here
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -34,22 +35,37 @@ provider:
         - dynamodb:DeleteItem
       Resource:
         - "Fn::GetAtt": [ WebHookTable, Arn ]
-# you can define service wide environment variables here
+    - Effect: Allow
+      Action: s3:*
+      Resource:
+        - arn:aws:s3:::${self:custom.triggerBucket}
+        - arn:aws:s3:::${self:custom.triggerBucket}/*
+    - Effect: Allow
+      Action: lambda:InvokeFunction
+      Resource:
+        - arn:aws:lambda:*
+    - Effect: Allow
+      Action: codebuild:StartBuild
+      Resource:
+        - arn:aws:codebuild:*
+  # you can define service wide environment variables here
   environment:
     TABLENAME: ${self:custom.tableName}
     REGION: ${self:custom.region}
     TRIGGERBUCKET: ${self:custom.triggerBucket}
 
 package:
- exclude:
-   - ./**
- include:
-   - ./bin/**
+  exclude:
+    - ./**
+  include:
+    - ./bin/**
+    - ./resources/**
+    - ./config.json
 
 functions:
   hookReceiver:
-    handler: bin/hookReciever
-    name: ${self:provider.name}-hookReceiver
+    handler: bin/hookReceiver
+    name: ${self:service}-hookReceiver
     environment:
       CONTAINER_EXECUTER_NAME: ${self:functions.containerExecuter.name}
     events:
@@ -58,53 +74,11 @@ functions:
           method: POST
   containerExecuter:
     handler: bin/containerExecuter
-    name: ${self:provider.name}-containerExecuter
-  oAuthCallBack:
-    handler: bin/oauthCallback
-    events:
-      - http:
-          path: /callback
-          method: POST
-
-#    The following are a few example events you can configure
-#    NOTE: Please make sure to change your handler code to work with those events
-#    Check the event documentation for details
-# events:
-#    events:
-#      - http:
-#          path: users/create
-#          method: get
-#      - websocket: $connect
-#      - s3: ${env:BUCKET}
-#      - schedule: rate(10 minutes)
-#      - sns: greeter-topic
-#      - stream: arn:aws:dynamodb:region:XXXXXX:table/foo/stream/1970-01-01T00:00:00.000
-#      - alexaSkill: amzn1.ask.skill.xx-xx-xx-xx
-#      - alexaSmartHome: amzn1.ask.skill.xx-xx-xx-xx
-#      - iot:
-#          sql: "SELECT * FROM 'some_topic'"
-#      - cloudwatchEvent:
-#          event:
-#            source:
-#              - "aws.ec2"
-#            detail-type:
-#              - "EC2 Instance State-change Notification"
-#            detail:
-#              state:
-#                - pending
-#      - cloudwatchLog: '/aws/lambda/hello'
-#      - cognitoUserPool:
-#          pool: MyUserPool
-#          trigger: PreSignUp
-
-#    Define function environment variables here
-#    environment:
-#      variable2: value2
+    name: ${self:service}-containerExecuter
 
 # you can add CloudFormation resource templates here
 resources:
-  Resources:
-    - ${file(resources/dynamodb.yaml)}
+  Resources: ${file(./resources/dynamodb.yaml):Resources}
 #  Outputs:
 #     NewOutput:
 #       Description: "Description for the output"

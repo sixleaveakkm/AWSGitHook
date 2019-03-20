@@ -1,8 +1,8 @@
 .PHONY: build clean deploy package
 
 build:
-	env GOOS=linux go build -ldflags="-s -w" -o bin/hello hello/main.go
-	env GOOS=linux go build -ldflags="-s -w" -o bin/world world/main.go
+	env GOOS=linux go build -ldflags="-s -w" -o bin/hookReceiver src/hookReceiver/main.go
+	env GOOS=linux go build -ldflags="-s -w" -o bin/containerExecuter src/containerExecuter/main.go
 
 clean:
 	rm -rf ./bin

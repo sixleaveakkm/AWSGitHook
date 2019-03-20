@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
@@ -24,7 +25,11 @@ type Credential struct {
 	Key      string `json:"key"`
 	Secret   string `json:"secret"`
 }
+
 type HookEvent struct {
+	RepositoryName    string     `json:"repositoryName"`
+	RepositoryShort   string     `json:"reposirotyShort"`
+	GitFlavour        string     `json:"gitFlavour"`
 	ProjectName       string     `json:"projectName"`
 	Event             string     `json:"event"`
 	SourceBranch      string     `json:"source"`
@@ -35,6 +40,7 @@ type HookEvent struct {
 	CommitId          string     `json:"commitId"`
 	PullRequestId     string     `json:"pullRequestId"`
 	Credential        Credential `json:"credential"`
+	ExecutePath       string     `json:"ExecutePath"`
 }
 
 func isHookRegistered(repositoryName string, hookPtr *HookEvent, sess *session.Session) bool {
@@ -44,12 +50,13 @@ func isHookRegistered(repositoryName string, hookPtr *HookEvent, sess *session.S
 			"Repository": {
 				S: aws.String(repositoryName),
 			},
-			"Event": {
+			"Events": {
 				S: aws.String(hookPtr.Event),
 			},
 		},
 		TableName: aws.String(os.Getenv("TABLENAME")),
 	}
+	log.Printf("Queue info: \n\tRepository: %s\n\tEvents: %s\n\tTableName: %s", repositoryName, hookPtr.Event, os.Getenv("TABLENAME"))
 	result, err := svc.GetItem(input)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
@@ -72,7 +79,9 @@ func isHookRegistered(repositoryName string, hookPtr *HookEvent, sess *session.S
 		}
 		return false
 	}
+	log.Printf("result: %v", result)
 	items := result.Item
+
 	if items == nil {
 		log.Println("No matching repo data")
 		return false
@@ -86,19 +95,21 @@ func isHookRegistered(repositoryName string, hookPtr *HookEvent, sess *session.S
 			hookPtr.Credential.Key = *items["CredKey"].S
 			hookPtr.Credential.Secret = *items["CredSecret"].S
 			hookPtr.ProjectName = *items["ProjectName"].S
+			//hookPtr.ExecutePath = *items["ExecutePath"].S
 			return true
 		}
 		return false
 	case "pullrequest:created", "pullrequset:updated", "pullrequest:fulfilled", "pullrequest:rejected":
-		if items["DestinationBranch"] == nil {
-			// no branch specify
-			hookPtr.Credential.Category = *items["CredCategory"].S
-			hookPtr.Credential.Key = *items["CredKey"].S
-			hookPtr.Credential.Secret = *items["CredSecret"].S
-			hookPtr.ProjectName = *items["ProjectName"].S
-			return true
+		if items["DestinationBranch"] != nil && *items["DestinationBranch"].S != hookPtr.DestinationBranch {
+			return false
 		}
-		return *items["DestinationBranch"].S == hookPtr.DestinationBranch
+
+		hookPtr.Credential.Category = *items["CredCategory"].S
+		hookPtr.Credential.Key = *items["CredKey"].S
+		hookPtr.Credential.Secret = *items["CredSecret"].S
+		hookPtr.ProjectName = *items["ProjectName"].S
+		//hookPtr.ExecutePath = *items["ExecutePath"].S
+		return true
 
 	case "pullrequest:comment_created", "pullrequest:comment_updated", "pullrequest:comment_deleted":
 		if items["DestinationBranch"] != nil && *items["DestinationBranch"].S != hookPtr.DestinationBranch {
@@ -132,6 +143,7 @@ func isHookRegistered(repositoryName string, hookPtr *HookEvent, sess *session.S
 		hookPtr.Credential.Key = *items["CredKey"].S
 		hookPtr.Credential.Secret = *items["CredSecret"].S
 		hookPtr.ProjectName = *items["ProjectName"].S
+		//hookPtr.ExecutePath = *items["ExecutePath"].S
 		return true
 	default:
 		log.Println("hook event no match")
@@ -141,30 +153,47 @@ func isHookRegistered(repositoryName string, hookPtr *HookEvent, sess *session.S
 
 func getHookEvent(gitFlavour string, request *Request) (*HookEvent, bool) { // if ok
 	hookPtr := new(HookEvent)
-	jsonQ := gojsonq.New().JSONString(request.Body)
+	log.Printf("request.Body T: %T\n", request.Body)
 	switch gitFlavour {
 	case "bitbucket":
+		log.Printf("request.Headers[x-event-key] T: %T\n", request.Headers["X-Event-Key"])
 		eventStr := request.Headers["X-Event-Key"]
+		log.Printf("eventStr ,%T, %v", eventStr, eventStr)
 		eventArr := strings.Split(eventStr, ":")
 		switch eventArr[0] {
 		case "repo":
 			if eventArr[1] == "push" {
 				hookPtr.Event = eventStr
-				hookPtr.SourceBranch = jsonQ.Find("push.changes[0].new.name").(string)
+				log.Println(hookPtr.Event)
+				hookPtr.SourceBranch = gojsonq.New().JSONString(request.Body).Find("push.changes[0].new.name").(string)
+				log.Println(hookPtr.SourceBranch)
 				hookPtr.DestinationBranch = hookPtr.SourceBranch
+				log.Println(hookPtr.DestinationBranch)
+				log.Printf("x-request-uuid T: %T", request.Headers["X-Request-UUID"])
 				hookPtr.Uuid = request.Headers["X-Request-UUID"]
-				hookPtr.CommitId = jsonQ.Find("push.changes[0].links.commits.href").(string)
+				hookPtr.CommitId = gojsonq.New().JSONString(request.Body).Find("push.changes[0].links.commits.href").(string)
+				hookPtr.RepositoryShort = gojsonq.New().JSONString(request.Body).Find("repository.full_name").(string)
 			}
 		case "pullrequest":
 			hookPtr.Event = eventStr
-			hookPtr.SourceBranch = jsonQ.Find("pullrequest.source.branch").(string)
-			hookPtr.DestinationBranch = jsonQ.Find("pullrequest.destination.branch").(string)
+			log.Println(hookPtr.Event)
+			hookPtr.SourceBranch = gojsonq.New().JSONString(request.Body).Find("pullrequest.source.branch.name").(string)
+			log.Println(hookPtr.SourceBranch)
+			hookPtr.DestinationBranch = gojsonq.New().JSONString(request.Body).Find("pullrequest.destination.branch.name").(string)
+			log.Println(hookPtr.DestinationBranch)
 			hookPtr.Uuid = request.Headers["X-Request-UUID"]
-			hookPtr.CommitId = jsonQ.Find("pullrequest.source.commits.links.html").(string)
-			hookPtr.PullRequestId = jsonQ.Find("pullrequest.id").(string)
-			if jsonQ.Find("comment") != nil {
-				hookPtr.Comment = jsonQ.Find("comment.content.raw").(string)
-				hookPtr.CommentAuthor = jsonQ.Find("actor.uuid").(string)
+			log.Println(hookPtr.Uuid)
+			hookPtr.CommitId = gojsonq.New().JSONString(request.Body).Find("pullrequest.source.commit.links.html.href").(string)
+			log.Println(hookPtr.CommitId)
+			hookPtr.PullRequestId = fmt.Sprintf("%d", int(gojsonq.New().JSONString(request.Body).Find("pullrequest.id").(float64)))
+			log.Println(hookPtr.PullRequestId)
+			hookPtr.RepositoryShort = gojsonq.New().JSONString(request.Body).Find("repository.full_name").(string)
+			log.Println(hookPtr.RepositoryShort)
+			if gojsonq.New().JSONString(request.Body).Find("comment") != nil {
+				hookPtr.Comment = gojsonq.New().JSONString(request.Body).Find("comment.content.raw").(string)
+				log.Println(hookPtr.DestinationBranch)
+				hookPtr.CommentAuthor = gojsonq.New().JSONString(request.Body).Find("actor.uuid").(string)
+				log.Println(hookPtr.CommentAuthor)
 			}
 		}
 
@@ -194,14 +223,13 @@ func getGitHookFlavour(headers map[string]string) (string, bool) { //if ok
 }
 
 func getRepositoryURL(gitFlavour string, request *Request) (string, bool) { // if ok
-	bodyJsonQ := gojsonq.New().JSONString(request.Body)
 	switch gitFlavour {
 	case "githubent", "github":
-		return bodyJsonQ.Find("repository.archieve_url").(string), true
+		return gojsonq.New().JSONString(request.Body).Find("repository.archieve_url").(string), true
 	case "gitlab":
-		return bodyJsonQ.Find("project.http_url").(string), true
+		return gojsonq.New().JSONString(request.Body).Find("project.http_url").(string), true
 	case "bitbucket":
-		return bodyJsonQ.Find("repository.links.html").(string), true
+		return gojsonq.New().JSONString(request.Body).Find("repository.links.html.href").(string), true
 	default:
 		return "", false
 	}
@@ -219,25 +247,27 @@ func response410(reason string) Response {
 }
 
 func HookReceiver(_ context.Context, request Request) (Response, error) {
-	log.Printf("Evnet %+v", request)
+	//log.Printf("Evnet %+v", request)
 	gitFlavour, ok := getGitHookFlavour(request.Headers)
 	if !ok {
 		log.Println("Exit because not a hook")
 		return response410("Not a hook"), nil
 	}
+	log.Printf("Git flavour is %v\n", gitFlavour)
 
 	repositoryName, ok := getRepositoryURL(gitFlavour, &request)
 	if !ok {
 		log.Println("Exit because no repository data found")
 		return response410("Repository data not found"), nil
 	}
+	log.Printf("Repo name is %v\n", repositoryName)
 
 	hookEventPtr, ok := getHookEvent(gitFlavour, &request)
 	if !ok {
 		log.Println("Exit because no hook data found")
-		return response410("Hook data not found"), nil
+		return response410("Hook data not URL found"), nil
 	}
-
+	log.Printf("hookEvent: %+v\n", hookEventPtr)
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String(os.Getenv("REGION")),
 	}))
@@ -252,32 +282,27 @@ func HookReceiver(_ context.Context, request Request) (Response, error) {
 			},
 		}, nil
 	}
+	hookEventPtr.RepositoryName = repositoryName
+	hookEventPtr.GitFlavour = gitFlavour
 
-	eventKey := ""
-	eventArr := strings.Split(hookEventPtr.Event, ":")
-	if eventArr[0] == "pullrequest" {
-		eventKey = "pullrequest-" + hookEventPtr.PullRequestId
-	} else if eventArr[1] == "push" {
-		eventKey = "push-" + hookEventPtr.SourceBranch
-	}
-	bucketKey := strings.Join([]string{
-		repositoryName,
-		eventKey,
-		hookEventPtr.Uuid,
-	}, "/")
-	// export json to file: UUid
-	jsonStr, err := json.Marshal(*hookEventPtr)
+	// export zipped json to file: UUid
+	jsonStr, err := json.Marshal(hookEventPtr)
+
 	if err != nil {
 		log.Fatalf("Error when marshal json: %+v\n", err)
 	} else {
-		lambdaExecuter := lambdaSDK.New(sess)
+		log.Printf("jsonStr is : %s", jsonStr)
+		lambdaExecutor := lambdaSDK.New(sess)
 		invocationType := "Event"
 		functionName := os.Getenv("CONTAINER_EXECUTER_NAME")
-		output, err := lambdaExecuter.Invoke(&lambdaSDK.InvokeInput{
+		_, err := lambdaExecutor.Invoke(&lambdaSDK.InvokeInput{
 			FunctionName:   &functionName,
 			InvocationType: &invocationType,
 			Payload:        jsonStr,
 		})
+		if err != nil {
+			log.Fatalf("Error invoke function: %v", err)
+		}
 	}
 
 	return Response{

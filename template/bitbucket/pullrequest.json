@@ -15,7 +15,7 @@
                     "type": "rendered"
                 }
             },
-            "merge_commit": None,
+            "merge_commit": "none",
             "description": "ssss",
             "links": {
                 "decline": {
@@ -50,7 +50,7 @@
                 }
             },
             "title": "Feature-master",
-            "close_source_branch": False,
+            "close_source_branch": false,
             "reviewers": [],
             "destination": {
                 "commit": {
@@ -87,7 +87,7 @@
                 }
             },
             "comment_count": 0,
-            "closed_by": None,
+            "closed_by": "none",
             "summary": {
                 "raw": "ssss",
                 "markup": "markdown",
@@ -211,7 +211,7 @@
                 "uuid": "{f69d65df-8ef2-4a07-86f0-5d50692dcb4e}"
             },
             "type": "repository",
-            "is_private": True,
+            "is_private": true,
             "uuid": "{4328e4a2-34a9-4fd8-8bba-75f105860a0a}"
         }
     },

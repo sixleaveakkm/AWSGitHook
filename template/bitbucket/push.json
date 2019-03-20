@@ -3,8 +3,8 @@
 		"push": {
 			"changes": [
 				{
-					"forced": False,
-					"old": None,
+					"forced": false,
+					"old": "none",
 					"links": {
 						"commits": {
 							"href": "https: //api.bitbucket.org/2.0/repositories/sixleaveakkm/testwebhook/commits?include=e335112fa05fc2f4eb54ed2a73a748f777743ebd"
@@ -13,7 +13,7 @@
 							"href": "https://bitbucket.org/sixleaveakkm/testwebhook/branch/master"
 						}
 					},
-					"truncated": False,
+					"truncated": false,
 					"commits": [
 						{
 							"rendered": {},
@@ -151,8 +151,8 @@
 							"properties": {}
 						}
 					],
-					"created": True,
-					"closed": False,
+					"created": true,
+					"closed": false,
 					"new": {
 						"target": {
 							"rendered": {},
@@ -272,7 +272,7 @@
 				"uuid": "{f69d65df-8ef2-4a07-86f0-5d50692dcb4e}"
 			},
 			"type": "repository",
-			"is_private": True,
+			"is_private": true,
 			"uuid": "{4328e4a2-34a9-4fd8-8bba-75f105860a0a}"
 		},
 		"actor": {
