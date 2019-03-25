@@ -11,6 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	lambdaSDK "github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/sixleaveakkm/AWSGitHook/src/hookEvent"
+	"github.com/sixleaveakkm/AWSGitHook/src/hookEvent/hookSetters"
 	"github.com/thedevsaddam/gojsonq"
 	"log"
 	"os"
@@ -20,30 +22,7 @@ import (
 type Response events.APIGatewayProxyResponse
 type Request events.APIGatewayProxyRequest
 
-type Credential struct {
-	Category string `json:"category"` // bitbucket:oauth
-	Key      string `json:"key"`
-	Secret   string `json:"secret"`
-}
-
-type HookEvent struct {
-	RepositoryName    string     `json:"repositoryName"`
-	RepositoryShort   string     `json:"reposirotyShort"`
-	GitFlavour        string     `json:"gitFlavour"`
-	ProjectName       string     `json:"projectName"`
-	Event             string     `json:"event"`
-	SourceBranch      string     `json:"source"`
-	DestinationBranch string     `json:"destination"`
-	Comment           string     `json:"comment"`
-	CommentAuthor     string     `json:"commentAuthor"`
-	Uuid              string     `json:"uuid"`
-	CommitId          string     `json:"commitId"`
-	PullRequestId     string     `json:"pullRequestId"`
-	Credential        Credential `json:"credential"`
-	ExecutePath       string     `json:"ExecutePath"`
-}
-
-func isHookRegistered(repositoryName string, hookPtr *HookEvent, sess *session.Session) bool {
+func isHookRegistered(repositoryName string, hookPtr *hookEvent.HookEvent, sess *session.Session) bool {
 	svc := dynamodb.New(sess)
 	input := &dynamodb.GetItemInput{
 		Key: map[string]*dynamodb.AttributeValue{
@@ -151,87 +130,17 @@ func isHookRegistered(repositoryName string, hookPtr *HookEvent, sess *session.S
 	}
 }
 
-func getHookEvent(gitFlavour string, request *Request) (*HookEvent, bool) { // if ok
-	hookPtr := new(HookEvent)
+func getHookEvent(gitFlavour string, request *Request) (*hookEvent.HookEvent, bool) { // if ok
+	hookPtr := new(hookEvent.HookEvent)
 	log.Printf("request.Body T: %T\n", request.Body)
 	switch gitFlavour {
 	case "bitbucket":
-		log.Printf("request.Headers[x-event-key] T: %T\n", request.Headers["X-Event-Key"])
-		eventStr := request.Headers["X-Event-Key"]
-		log.Printf("eventStr ,%T, %v", eventStr, eventStr)
-		eventArr := strings.Split(eventStr, ":")
-		switch eventArr[0] {
-		case "repo":
-			if eventArr[1] == "push" {
-				hookPtr.Event = eventStr
-				log.Println(hookPtr.Event)
-				hookPtr.SourceBranch = gojsonq.New().JSONString(request.Body).Find("push.changes[0].new.name").(string)
-				log.Println(hookPtr.SourceBranch)
-				hookPtr.DestinationBranch = hookPtr.SourceBranch
-				log.Println(hookPtr.DestinationBranch)
-				log.Printf("x-request-uuid T: %T", request.Headers["X-Request-UUID"])
-				hookPtr.Uuid = request.Headers["X-Request-UUID"]
-				hookPtr.CommitId = gojsonq.New().JSONString(request.Body).Find("push.changes[0].links.commits.href").(string)
-				hookPtr.RepositoryShort = gojsonq.New().JSONString(request.Body).Find("repository.full_name").(string)
-			}
-		case "pullrequest":
-			hookPtr.Event = eventStr
-			log.Println(hookPtr.Event)
-			hookPtr.SourceBranch = gojsonq.New().JSONString(request.Body).Find("pullrequest.source.branch.name").(string)
-			log.Println(hookPtr.SourceBranch)
-			hookPtr.DestinationBranch = gojsonq.New().JSONString(request.Body).Find("pullrequest.destination.branch.name").(string)
-			log.Println(hookPtr.DestinationBranch)
-			hookPtr.Uuid = request.Headers["X-Request-UUID"]
-			log.Println(hookPtr.Uuid)
-			hookPtr.CommitId = gojsonq.New().JSONString(request.Body).Find("pullrequest.source.commit.links.html.href").(string)
-			log.Println(hookPtr.CommitId)
-			hookPtr.PullRequestId = fmt.Sprintf("%d", int(gojsonq.New().JSONString(request.Body).Find("pullrequest.id").(float64)))
-			log.Println(hookPtr.PullRequestId)
-			hookPtr.RepositoryShort = gojsonq.New().JSONString(request.Body).Find("repository.full_name").(string)
-			log.Println(hookPtr.RepositoryShort)
-			if gojsonq.New().JSONString(request.Body).Find("comment") != nil {
-				hookPtr.Comment = gojsonq.New().JSONString(request.Body).Find("comment.content.raw").(string)
-				log.Println(hookPtr.DestinationBranch)
-				hookPtr.CommentAuthor = gojsonq.New().JSONString(request.Body).Find("actor.uuid").(string)
-				log.Println(hookPtr.CommentAuthor)
-			}
-		}
 
 	}
 	if hookPtr != nil {
 		return hookPtr, true
 	} else {
 		return nil, false
-	}
-}
-
-func getGitHookFlavour(headers map[string]string) (string, bool) { //if ok
-	if _, ok := headers["X-Hub-Signature"]; ok {
-		return "githubent", true
-	}
-	if _, ok := headers["X-Gitlab-Event"]; ok {
-		return "gitlab", true
-	}
-	if agent, ok := headers["User-Agent"]; ok {
-		if strings.HasPrefix(agent, "Bitbucket-Webhooks") {
-			return "bitbucket", true
-		} else if strings.HasPrefix(agent, "GitHub-Hookshot") {
-			return "github", true
-		}
-	}
-	return "", false
-}
-
-func getRepositoryURL(gitFlavour string, request *Request) (string, bool) { // if ok
-	switch gitFlavour {
-	case "githubent", "github":
-		return gojsonq.New().JSONString(request.Body).Find("repository.archieve_url").(string), true
-	case "gitlab":
-		return gojsonq.New().JSONString(request.Body).Find("project.http_url").(string), true
-	case "bitbucket":
-		return gojsonq.New().JSONString(request.Body).Find("repository.links.html.href").(string), true
-	default:
-		return "", false
 	}
 }
 
@@ -246,7 +155,7 @@ func response410(reason string) Response {
 	}
 }
 
-func HookReceiver(_ context.Context, request Request) (Response, error) {
+func HookReceiver(_ context.Context, request events.APIGatewayProxyRequest) (Response, error) {
 	//log.Printf("Evnet %+v", request)
 	gitFlavour, ok := getGitHookFlavour(request.Headers)
 	if !ok {
@@ -255,12 +164,13 @@ func HookReceiver(_ context.Context, request Request) (Response, error) {
 	}
 	log.Printf("Git flavour is %v\n", gitFlavour)
 
-	repositoryName, ok := getRepositoryURL(gitFlavour, &request)
-	if !ok {
-		log.Println("Exit because no repository data found")
-		return response410("Repository data not found"), nil
+	hookEventPtr := hookEvent.HookEvent{}
+	var hookSetter hookEvent.HookSetter
+	switch gitFlavour {
+	case "bitbucket":
+		hookSetter = new(hookSetters.GitHubHookSetter)
 	}
-	log.Printf("Repo name is %v\n", repositoryName)
+	err := hookSetter.Set(&request, &hookEventPtr)
 
 	hookEventPtr, ok := getHookEvent(gitFlavour, &request)
 	if !ok {
@@ -282,7 +192,6 @@ func HookReceiver(_ context.Context, request Request) (Response, error) {
 			},
 		}, nil
 	}
-	hookEventPtr.RepositoryName = repositoryName
 	hookEventPtr.GitFlavour = gitFlavour
 
 	// export zipped json to file: UUid

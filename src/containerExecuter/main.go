@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/codebuild"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/sixleaveakkm/AWSGitHook/src/hookEvent"
 	"io"
 	"io/ioutil"
 	"log"
@@ -16,39 +17,16 @@ import (
 	"strings"
 )
 
-type Credential struct {
-	Category string `json:"category"` // bitbucket:oauth
-	Key      string `json:"key"`
-	Secret   string `json:"secret"`
-}
-
-type HookEvent struct {
-	RepositoryName    string     `json:"repositoryName"`
-	RepositoryShort   string     `json:"reposirotyShort"`
-	GitFlavour        string     `json:"gitFlavour"`
-	ProjectName       string     `json:"projectName"`
-	Event             string     `json:"event"`
-	SourceBranch      string     `json:"source"`
-	DestinationBranch string     `json:"destination"`
-	Comment           string     `json:"comment"`
-	CommentAuthor     string     `json:"commentAuthor"`
-	Uuid              string     `json:"uuid"`
-	CommitId          string     `json:"commitId"`
-	PullRequestId     string     `json:"pullRequestId"`
-	Credential        Credential `json:"credential"`
-	ExecutePath       string     `json:"ExecutePath"`
-}
-
-func createFile(hookEventPtr *HookEvent) {
+func createFile(hookEventPtr *hookEvent.HookEvent) {
 	bytes, err := json.Marshal(hookEventPtr)
 	if err != nil {
 		log.Fatalf("Error marshal data %v", err)
 	}
-	err = ioutil.WriteFile("/tmp/config.json", bytes, 0666)
+	err = ioutil.WriteFile("/tmp/git_info.json", bytes, 0666)
 	if err != nil {
 		log.Fatalf("Error create file %v", err)
 	}
-	zipFile, err := os.Create("/tmp/config.json.zip")
+	zipFile, err := os.Create("/tmp/git_info.json.zip")
 	if err != nil {
 		log.Fatalf("Error create zip file %v", err)
 	}
@@ -63,7 +41,7 @@ func createFile(hookEventPtr *HookEvent) {
 			log.Fatalf("Error close zip writer %v", err)
 		}
 	}()
-	file, err := os.Open("/tmp/config.json")
+	file, err := os.Open("/tmp/git_info.json")
 	if err != nil {
 		log.Fatalf("Error read json file %v", err)
 	}
@@ -94,7 +72,7 @@ func createFile(hookEventPtr *HookEvent) {
 		log.Fatalf("Error copy file %v", err)
 	}
 }
-func ContainerExecuter(ctx context.Context, hookEventPtr HookEvent) error {
+func ContainerExecuter(ctx context.Context, hookEventPtr hookEvent.HookEvent) error {
 	log.Printf("payload: %v", hookEventPtr)
 
 	sess := session.Must(session.NewSession(&aws.Config{
@@ -111,7 +89,7 @@ func ContainerExecuter(ctx context.Context, hookEventPtr HookEvent) error {
 	bucketKey := strings.Join([]string{
 		hookEventPtr.RepositoryName[8:],
 		eventKey,
-		"config.json.zip",
+		"git_info.json.zip",
 	}, "/")
 
 	log.Printf("bucket key: %s", bucketKey)
@@ -119,7 +97,7 @@ func ContainerExecuter(ctx context.Context, hookEventPtr HookEvent) error {
 	createFile(&hookEventPtr)
 	// upload to s3
 	uploader := s3manager.NewUploader(sess)
-	uploadFile, err := os.Open("/tmp/config.json.zip")
+	uploadFile, err := os.Open("/tmp/git_info.json.zip")
 	if err != nil {
 		log.Fatalf("failed to open uuid file %v", err)
 	}
