@@ -2,21 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	gitConnectorImpl "github.com/sixleaveakkm/AWSGitHook/src/connect/gitConnector"
+	gitConnector "github.com/sixleaveakkm/AWSGitHook/src/connect/gitConnector"
 	"github.com/sixleaveakkm/AWSGitHook/src/hookEvent"
 	"io/ioutil"
 	"log"
 	"os"
 )
-
-type GitConnector interface {
-	Connect()
-	BuildStart()
-	BuildFail()
-	BuildSucc()
-	BuildStop()
-	Comment(string)
-}
 
 func main() {
 	executeType := os.Args[1]
@@ -41,23 +32,22 @@ func main() {
 		log.Fatalf("json Unmarshal data failed, %v", err)
 	}
 
-	var gitConnector GitConnector
+	var gitConn gitConnector.GitConnector
 	switch hookEventData.GitFlavour {
 	case "bitbucket":
-		gitConnector = new(gitConnectorImpl.BitBucketConnector{
+		gitConn = &gitConnector.BitBucketConnector{
 			HookEventPtr: hookEventData,
-		})
+		}
+		gitConn.Initialize()
 	}
 	switch executeType {
 	case "build_start":
-		gitConnector.BuildStart()
+		gitConn.BuildStart()
 	case "build_fail":
-		gitConnector.BuildFail()
+		gitConn.BuildFail()
 	case "build_succ":
-		gitConnector.BuildSucc()
+		gitConn.BuildSucc()
 	case "comment":
-		gitConnector.Comment(os.Args[2])
-	default:
-		gitConnector.Connect()
+		gitConn.Comment(os.Args[2])
 	}
 }

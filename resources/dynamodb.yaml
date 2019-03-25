@@ -12,7 +12,6 @@ Resources:
           AttributeType: S
         - AttributeName: Events
           AttributeType: S
-          # sperate each event name with ",", allowed names are "push" "pull_request" "commit"
       KeySchema:
         - AttributeName: Repository
           KeyType: HASH

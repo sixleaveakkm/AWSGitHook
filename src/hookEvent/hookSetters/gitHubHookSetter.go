@@ -20,3 +20,8 @@ func (setter *GitHubHookSetter) Set(request *events.APIGatewayProxyRequest, hook
 	//todo: implement
 	return nil
 }
+
+func (setter *GitHubHookSetter) Match(hookEvent *hookEvent.HookEvent, result *hookEvent.QueueResult) bool {
+	//todo: implement
+	return false
+}

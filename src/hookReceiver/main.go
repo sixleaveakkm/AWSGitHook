@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
@@ -13,7 +13,6 @@ import (
 	lambdaSDK "github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/sixleaveakkm/AWSGitHook/src/hookEvent"
 	"github.com/sixleaveakkm/AWSGitHook/src/hookEvent/hookSetters"
-	"github.com/thedevsaddam/gojsonq"
 	"log"
 	"os"
 	"strings"
@@ -22,7 +21,7 @@ import (
 type Response events.APIGatewayProxyResponse
 type Request events.APIGatewayProxyRequest
 
-func isHookRegistered(repositoryName string, hookPtr *hookEvent.HookEvent, sess *session.Session) bool {
+func queueHookRegisteredInfo(repositoryName string, event string, sess *session.Session) (*hookEvent.QueueResult, error) {
 	svc := dynamodb.New(sess)
 	input := &dynamodb.GetItemInput{
 		Key: map[string]*dynamodb.AttributeValue{
@@ -30,12 +29,12 @@ func isHookRegistered(repositoryName string, hookPtr *hookEvent.HookEvent, sess 
 				S: aws.String(repositoryName),
 			},
 			"Events": {
-				S: aws.String(hookPtr.Event),
+				S: aws.String(event),
 			},
 		},
 		TableName: aws.String(os.Getenv("TABLENAME")),
 	}
-	log.Printf("Queue info: \n\tRepository: %s\n\tEvents: %s\n\tTableName: %s", repositoryName, hookPtr.Event, os.Getenv("TABLENAME"))
+	log.Printf("Queue info: \n\tRepository: %s\n\tEvents: %s\n\tTableName: %s", repositoryName, event, os.Getenv("TABLENAME"))
 	result, err := svc.GetItem(input)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
@@ -56,92 +55,81 @@ func isHookRegistered(repositoryName string, hookPtr *hookEvent.HookEvent, sess 
 			// Message from an error.
 			log.Println(err.Error())
 		}
-		return false
+		return nil, errors.New("queue database failed")
 	}
-	log.Printf("result: %v", result)
+	log.Printf("result: %+v", result)
 	items := result.Item
 
 	if items == nil {
-		log.Println("No matching repo data")
-		return false
+		return nil, errors.New("no match data")
 	}
 
-	// matching pattern
-	switch hookPtr.Event {
-	case "repo:push":
-		if items["SourceBranch"] != nil && *items["SourceBranch"].S == hookPtr.SourceBranch {
-			hookPtr.Credential.Category = *items["CredCategory"].S
-			hookPtr.Credential.Key = *items["CredKey"].S
-			hookPtr.Credential.Secret = *items["CredSecret"].S
-			hookPtr.ProjectName = *items["ProjectName"].S
-			//hookPtr.ExecutePath = *items["ExecutePath"].S
-			return true
-		}
-		return false
-	case "pullrequest:created", "pullrequset:updated", "pullrequest:fulfilled", "pullrequest:rejected":
-		if items["DestinationBranch"] != nil && *items["DestinationBranch"].S != hookPtr.DestinationBranch {
-			return false
-		}
-
-		hookPtr.Credential.Category = *items["CredCategory"].S
-		hookPtr.Credential.Key = *items["CredKey"].S
-		hookPtr.Credential.Secret = *items["CredSecret"].S
-		hookPtr.ProjectName = *items["ProjectName"].S
-		//hookPtr.ExecutePath = *items["ExecutePath"].S
-		return true
-
-	case "pullrequest:comment_created", "pullrequest:comment_updated", "pullrequest:comment_deleted":
-		if items["DestinationBranch"] != nil && *items["DestinationBranch"].S != hookPtr.DestinationBranch {
-			return false
-		}
-		if items["Comment"] != nil {
-			isContaining := false
-			for _, valuePtr := range items["Comment"].L {
-				if *valuePtr.S == hookPtr.Comment {
-					isContaining = true
-					break
-				}
-			}
-			if !isContaining {
-				return false
-			}
-		}
-		if items["CommentAuthor"] != nil {
-			isContaining := false
-			for _, valuePtr := range items["CommentAuthor"].L {
-				if *valuePtr.S == hookPtr.Comment {
-					isContaining = true
-					break
-				}
-			}
-			if !isContaining {
-				return false
-			}
-		}
-		hookPtr.Credential.Category = *items["CredCategory"].S
-		hookPtr.Credential.Key = *items["CredKey"].S
-		hookPtr.Credential.Secret = *items["CredSecret"].S
-		hookPtr.ProjectName = *items["ProjectName"].S
-		//hookPtr.ExecutePath = *items["ExecutePath"].S
-		return true
-	default:
-		log.Println("hook event no match")
-		return false
+	queueResult := new(hookEvent.QueueResult)
+	if items["ProjectName"] != nil {
+		queueResult.ProjectName = *items["ProjectName"].S
 	}
+	queueResult.Credential = hookEvent.Credential{}
+	if items["CredCategory"] != nil {
+		queueResult.Credential.Category = *items["CredCategory"].S
+	}
+	if items["CredKey"] != nil {
+		queueResult.Credential.Key = *items["CredKey"].S
+	}
+	if items["CredSecret"] != nil {
+		queueResult.Credential.Secret = *items["credSecret"].S
+	}
+	if items["ExecutePath"] != nil {
+		queueResult.ExecutePath = *items["ExecutePath"].S
+	}
+
+	for _, event := range items["Events"].L {
+		value := event.M
+		eventStruct := new(hookEvent.Event)
+		if value["SkipWIP"] != nil {
+			eventStruct.SkipWIP = *value["SkipWIP"].S == "true"
+		}
+		if value["PermittedCommentUsers"] != nil {
+			var users []string
+			for _, userList := range value["PermittedCommentUsers"].L {
+				users = append(users, *userList.S)
+			}
+			eventStruct.PermittedCommentUsers = users
+		}
+		if value["ReBuildComments"] != nil {
+			var comments []string
+			for _, commentList := range value["ReBuildComments"].L {
+				comments = append(comments, *commentList.S)
+			}
+			eventStruct.ReBuildComments = comments
+		}
+		if value["SourceBranch"] != nil {
+			eventStruct.SourceBranch = *value["SourceBranch"].S
+		}
+		if value["DestinationBranch"] != nil {
+			eventStruct.DestinationBranch = *value["DestinationBranch"].S
+		}
+
+		queueResult.Events = append(queueResult.Events, *eventStruct)
+	}
+
+	return queueResult, nil
 }
 
-func getHookEvent(gitFlavour string, request *Request) (*hookEvent.HookEvent, bool) { // if ok
-	hookPtr := new(hookEvent.HookEvent)
-	log.Printf("request.Body T: %T\n", request.Body)
-	switch gitFlavour {
-	case "bitbucket":
-
+func getGitHookFlavour(headers map[string]string) (string, error) {
+	if _, ok := headers["X-Hub-Signature"]; ok {
+		return "githubent", nil
 	}
-	if hookPtr != nil {
-		return hookPtr, true
-	} else {
-		return nil, false
+	if _, ok := headers["X-Gitlab-Event"]; ok {
+		return "gitlab", nil
 	}
+	if agent, ok := headers["User-Agent"]; ok {
+		if strings.HasPrefix(agent, "Bitbucket-Webhooks") {
+			return "bitbucket", nil
+		} else if strings.HasPrefix(agent, "GitHub-Hookshot") {
+			return "github", nil
+		}
+	}
+	return "", errors.New("can't identify git flavour")
 }
 
 func response410(reason string) Response {
@@ -156,33 +144,33 @@ func response410(reason string) Response {
 }
 
 func HookReceiver(_ context.Context, request events.APIGatewayProxyRequest) (Response, error) {
-	//log.Printf("Evnet %+v", request)
-	gitFlavour, ok := getGitHookFlavour(request.Headers)
-	if !ok {
-		log.Println("Exit because not a hook")
-		return response410("Not a hook"), nil
+	log.Printf("Evnet %+v", request)
+
+	gitFlavour, err := getGitHookFlavour(request.Headers)
+	if err != nil {
+		log.Printf("Error, %v", err)
+		return response410(""), nil
 	}
 	log.Printf("Git flavour is %v\n", gitFlavour)
 
-	hookEventPtr := hookEvent.HookEvent{}
+	hookEventPtr := new(hookEvent.HookEvent)
 	var hookSetter hookEvent.HookSetter
 	switch gitFlavour {
 	case "bitbucket":
 		hookSetter = new(hookSetters.GitHubHookSetter)
 	}
-	err := hookSetter.Set(&request, &hookEventPtr)
+	err = hookSetter.Set(&request, hookEventPtr)
 
-	hookEventPtr, ok := getHookEvent(gitFlavour, &request)
-	if !ok {
-		log.Println("Exit because no hook data found")
-		return response410("Hook data not URL found"), nil
-	}
 	log.Printf("hookEvent: %+v\n", hookEventPtr)
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String(os.Getenv("REGION")),
 	}))
 
-	if !isHookRegistered(repositoryName, hookEventPtr, sess) {
+	registeredInfo, err := queueHookRegisteredInfo(hookEventPtr.ProjectName, hookEventPtr.Event, sess)
+	if err != nil {
+		return response410("repository not registered"), nil
+	}
+	if !hookSetter.Match(hookEventPtr, registeredInfo) {
 		return Response{
 			StatusCode:      204,
 			IsBase64Encoded: false,
@@ -192,9 +180,9 @@ func HookReceiver(_ context.Context, request events.APIGatewayProxyRequest) (Res
 			},
 		}, nil
 	}
-	hookEventPtr.GitFlavour = gitFlavour
-
-	// export zipped json to file: UUid
+	hookEventPtr.ProjectName = registeredInfo.ProjectName
+	hookEventPtr.Credential = registeredInfo.Credential
+	hookEventPtr.ExecutePath = registeredInfo.ExecutePath
 	jsonStr, err := json.Marshal(hookEventPtr)
 
 	if err != nil {
@@ -222,7 +210,6 @@ func HookReceiver(_ context.Context, request events.APIGatewayProxyRequest) (Res
 			"Content-Type": "application/json",
 		},
 	}, nil
-
 }
 
 func main() {

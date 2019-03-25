@@ -61,6 +61,7 @@ package:
     - ./bin/**
     - ./resources/**
     - ./config.json
+  individually: true
 
 functions:
   hookReceiver:
