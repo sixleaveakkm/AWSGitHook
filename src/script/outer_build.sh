@@ -2,6 +2,7 @@
 
 echo "git clone"
 cloneURL=`./gitConnector cloneURL`
+PATH=$PATH:`pwd`
 git clone $cloneURL "repo"
 git config --global user.name "DevBot"
 git config --global user.email "new_auth_dev_bot@worksap.co.jp"
@@ -15,10 +16,7 @@ if [[ $trigger_event =~ pullrequest.* ]];then
     git merge $source_branch
 fi
 
-PATH=$PATH:`pwd`
-
-./gitConnector build_start
-
+gitConnector build_start
 
 bash -x `cat ../git_info.json | jq .ExecutePath`
 code=$?
