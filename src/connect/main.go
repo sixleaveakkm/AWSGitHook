@@ -13,8 +13,7 @@ func main() {
 	executeType := os.Args[1]
 
 	log.SetFlags(log.Ldate | log.Ltime)
-	codebuildSrcDir := os.Getenv("CODEBUILD_SRC_DIR")
-	hookEventFile, err := os.Open(codebuildSrcDir + "/git_info.json")
+	hookEventFile, err := os.Open("./git_info.json")
 	if err != nil {
 		log.Fatalf("Open git info file failed, %v", err)
 		return
@@ -38,7 +37,6 @@ func main() {
 		gitConn = &gitConnector.BitBucketConnector{
 			HookEventPtr: hookEventData,
 		}
-		gitConn.Initialize()
 	}
 	switch executeType {
 	case "build_start":
@@ -49,5 +47,10 @@ func main() {
 		gitConn.BuildSucc()
 	case "comment":
 		gitConn.Comment(os.Args[2])
+	case "cloneURL":
+		gitConn.PrintCloneURL()
+	case "executePath":
+		gitConn.PrintExecutePath()
 	}
+
 }

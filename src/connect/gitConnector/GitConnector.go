@@ -1,12 +1,13 @@
 package gitConnector
 
 type GitConnector interface {
-	Initialize()
-	Connect()
+	Connect() string
 	BuildStart()
 	BuildFail()
 	BuildSucc()
 	BuildStop()
 	Comment(string)
 	GetToken() string
+	PrintCloneURL()
+	PrintExecutePath()
 }

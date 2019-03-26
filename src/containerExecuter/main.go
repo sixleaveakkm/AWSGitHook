@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"context"
 	"encoding/json"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -8,105 +9,144 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/codebuild"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/sixleaveakkm/AWSGitHook/src/connect/gitConnector"
 	"github.com/sixleaveakkm/AWSGitHook/src/hookEvent"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"strings"
 )
 
 func createFile(hookEventPtr *hookEvent.HookEvent) {
-	bytes, err := json.Marshal(hookEventPtr)
+	bytesArr, err := json.Marshal(hookEventPtr)
 	if err != nil {
 		log.Fatalf("Error marshal data %v", err)
 	}
-	err = ioutil.WriteFile("git_info.json", bytes, 0666)
+	err = ioutil.WriteFile("/tmp/git_info.json", bytesArr, 0666)
 	if err != nil {
 		log.Fatalf("Error create file %v", err)
 	}
-	//zipFile, err := os.Create("/tmp/package.zip")
-	//if err != nil {
-	//	log.Fatalf("Error create zip file %v", err)
-	//}
-	//defer func() {
-	//	if err := zipFile.Close(); err != nil {
-	//		log.Fatalf("Error close zip file %v", err)
-	//	}
-	//}()
-	//zipWriter := zip.NewWriter(zipFile)
-	//defer func() {
-	//	if err := zipWriter.Close(); err != nil {
-	//		log.Fatalf("Error close zip writer %v", err)
-	//	}
-	//}()
-	//file, err := os.Open("/tmp/git_info.json")
-	//if err != nil {
-	//	log.Fatalf("Error read json file %v", err)
-	//}
-	//defer func() {
-	//	if err := file.Close(); err != nil {
-	//		log.Fatalf("Error close json file %v", err)
-	//	}
-	//}()
-	//info, err := file.Stat()
-	//if err != nil {
-	//	log.Fatalf("Error read file stat, %v", err)
-	//}
-	//log.Printf("config.json length is %d bytes", info.Size())
-	//header, err := zip.FileInfoHeader(info)
-	//if err != nil {
-	//	log.Fatalf("Error read file header %v", err)
-	//}
-	//header.Name = "config.json"
-	//header.Method = zip.Deflate
-	//
-	//writer, err := zipWriter.CreateHeader(header)
-	//if err != nil {
-	//	log.Fatalf("Error create header file %v", err)
-	//}
-	//
-	//_, err = io.Copy(writer, file)
-	//if err != nil {
-	//	log.Fatalf("Error copy file %v", err)
-	//}
-	_, err = exec.Command("zip", "../package.zip", "*").Output()
+	zipFile, err := os.Create("/tmp/package.zip")
 	if err != nil {
-		log.Printf("Zip file failed, %v", err)
+		log.Fatalf("Error create zip file %v", err)
 	}
+	defer func() {
+		if err := zipFile.Close(); err != nil {
+			log.Fatalf("Error close zip file %v", err)
+		}
+	}()
+	zipWriter := zip.NewWriter(zipFile)
+	defer func() {
+		if err := zipWriter.Close(); err != nil {
+			log.Fatalf("Error close zip writer %v", err)
+		}
+	}()
+
+	file, err := os.Open("/tmp/git_info.json")
+	if err != nil {
+		log.Fatalf("Error read json file %v", err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Fatalf("Error close json file %v", err)
+		}
+	}()
+	info, err := file.Stat()
+	if err != nil {
+		log.Fatalf("Error read file stat, %v", err)
+	}
+	log.Printf("config.json length is %d bytes", info.Size())
+	header, err := zip.FileInfoHeader(info)
+	if err != nil {
+		log.Fatalf("Error read file header %v", err)
+	}
+	header.Name = "git_info.json"
+	header.Method = zip.Deflate
+
+	writer, err := zipWriter.CreateHeader(header)
+	if err != nil {
+		log.Fatalf("Error create header file %v", err)
+	}
+	_, err = io.Copy(writer, file)
+	if err != nil {
+		log.Fatalf("Error copy file %v", err)
+	}
+
+	file2, err := os.Open("./bin/gitConnector")
+	if err != nil {
+		log.Fatalf("Error read gitConnector file %v", err)
+	}
+	defer func() {
+		if err := file2.Close(); err != nil {
+			log.Fatalf("Error close gitConnector file %v", err)
+		}
+	}()
+	info, err = file2.Stat()
+	if err != nil {
+		log.Fatalf("Error read file stat, %v", err)
+	}
+	log.Printf("gitConnector length is %d bytes", info.Size())
+	header, err = zip.FileInfoHeader(info)
+	if err != nil {
+		log.Fatalf("Error read file header %v", err)
+	}
+	header.Name = "gitConnector"
+	header.Method = zip.Deflate
+
+	writer, err = zipWriter.CreateHeader(header)
+	if err != nil {
+		log.Fatalf("Error create header file %v", err)
+	}
+	_, err = io.Copy(writer, file2)
+	if err != nil {
+		log.Fatalf("Error copy file %v", err)
+	}
+
+	file3, err := os.Open("./bin/outer_build.sh")
+	if err != nil {
+		log.Fatalf("Error read outer_build file %v", err)
+	}
+	defer func() {
+		if err := file3.Close(); err != nil {
+			log.Fatalf("Error close outer_build file %v", err)
+		}
+	}()
+	info, err = file3.Stat()
+	if err != nil {
+		log.Fatalf("Error read file stat, %v", err)
+	}
+	log.Printf("outer_build length is %d bytes", info.Size())
+	header, err = zip.FileInfoHeader(info)
+	if err != nil {
+		log.Fatalf("Error read file header %v", err)
+	}
+	header.Name = "outer_build"
+	header.Method = zip.Deflate
+
+	writer, err = zipWriter.CreateHeader(header)
+	if err != nil {
+		log.Fatalf("Error create header file %v", err)
+	}
+	_, err = io.Copy(writer, file3)
+	if err != nil {
+		log.Fatalf("Error copy file %v", err)
+	}
+
+	//_, err = exec.Command("zip", "/tmp/package.zip", "/tmp/git_info.json", "./bin/gitConnector", "./bin/build.sh").Output()
+	//if err != nil {
+	//	log.Printf("Zip file failed, %v", err)
+	//}
 }
-func ContainerExecuter(ctx context.Context, hookEventPtr hookEvent.HookEvent) error {
+func ContainerExecuter(_ context.Context, hookEventPtr hookEvent.HookEvent) error {
 	path := hookEventPtr.RepositoryName[8:]
 
-	//clone git
-	var gitConn gitConnector.GitConnector
-	switch hookEventPtr.GitFlavour {
-	case "bitbucket":
-		gitConn = &gitConnector.BitBucketConnector{
-			HookEventPtr: &hookEventPtr,
-		}
-		gitConn.Initialize()
-		token := gitConn.GetToken()
-		_, err := exec.Command("git", "clone", "https://x-token-auth:"+token+"@"+path+".git", "/tmp/"+path).Output()
-		if err != nil {
-			log.Fatalf("Clone git to tmp failed, %v", err)
-		}
-
-	}
-	//modify git dir
-	_, err := exec.Command("cd", "/tmp/"+path).Output()
-	if err != nil {
-		log.Fatalf("Change directory failed, %v", err)
-	}
-	_, err = exec.Command("git", "checkout", hookEventPtr.DestinationBranch).Output()
-	if err != nil {
-		log.Fatalf("Git checkout to destination branch '%s' failed, %v", hookEventPtr.DestinationBranch, err)
-	}
-	_, err = exec.Command("git", "merge", hookEventPtr.SourceBranch).Output()
-	if err != nil {
-		log.Fatalf("Git merge '%s' to '%s' failed, %v", hookEventPtr.SourceBranch, hookEventPtr.DestinationBranch, err)
-	}
+	//var gitConn gitConnector.GitConnector
+	//switch hookEventPtr.GitFlavour {
+	//case "bitbucket":
+	//	gitConn = &gitConnector.BitBucketConnector{
+	//		HookEventPtr: &hookEventPtr,
+	//	}
+	//}
 
 	createFile(&hookEventPtr)
 

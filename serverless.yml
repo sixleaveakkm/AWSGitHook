@@ -1,19 +1,20 @@
-service: ${file(./config.yml):service}
+service: ${file(./config.yml):${self:custom.profile}.service}
 frameworkVersion: ">=1.28.0 <2.0.0"
 
 custom:
   stage: dev
-  tableName: RegistedRepositories-${self:custom.stage}
+  profile: collabo
+  tableName: CI-GitHookRegistedRepositories
   region: ap-northeast-1
-  triggerBucket: ${file(./config.yml):triggerBucket}
-  deploymentBucket: ${file(./config.yml):deploymentBucket}
+  triggerBucket: ${file(./config.yml):${self:custom.profile}.triggerBucket}
+  deploymentBucket: ${file(./config.yml):${self:custom.profile}.deploymentBucket}
 
 provider:
   stage: ${self:custom.stage}
   name: aws
   runtime: go1.x
   region: ap-northeast-1
-  profile: personal
+  profile: ${self:custom.profile}
   memorySize: 128
   deploymentBucket:
     name: ${self:custom.deploymentBucket}
@@ -57,10 +58,6 @@ provider:
 package:
   exclude:
     - ./**
-  include:
-    - ./bin/**
-    - ./resources/**
-    - ./config.json
   individually: true
 
 functions:
@@ -73,10 +70,17 @@ functions:
       - http:
           path: /hooks
           method: POST
+    package:
+      include:
+        - ./bin/hookReceiver
   containerExecuter:
     handler: bin/containerExecuter
     name: ${self:service}-containerExecuter
-
+    package:
+      include:
+        - ./bin/containerExecuter
+        - ./bin/gitConnector
+        - ./bin/outer_build.sh
 # you can add CloudFormation resource templates here
 resources:
   Resources: ${file(./resources/dynamodb.yaml):Resources}

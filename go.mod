@@ -7,4 +7,5 @@ require (
 	github.com/thedevsaddam/gojsonq v1.9.1
 	golang.org/x/net v0.0.0-20190318221613-d196dffd7c2b // indirect
 	golang.org/x/oauth2 v0.0.0-20190319182350-c85d3e98c914
+	google.golang.org/appengine v1.4.0
 )

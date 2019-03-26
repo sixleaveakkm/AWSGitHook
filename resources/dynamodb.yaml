@@ -3,10 +3,11 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: ${self:custom.tableName}
-      BillingMode: PROVISIONED
-      ProvisionedThroughput:
-        ReadCapacityUnits: 2
-        WriteCapacityUnits: 2
+#      BillingMode: PROVISIONED
+#      ProvisionedThroughput:
+#        ReadCapacityUnits: 2
+#        WriteCapacityUnits: 2
+      BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Repository
           AttributeType: S

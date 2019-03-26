@@ -19,7 +19,6 @@ import (
 )
 
 type Response events.APIGatewayProxyResponse
-type Request events.APIGatewayProxyRequest
 
 func queueHookRegisteredInfo(repositoryName string, event string, sess *session.Session) (*hookEvent.QueueResult, error) {
 	svc := dynamodb.New(sess)
@@ -67,22 +66,28 @@ func queueHookRegisteredInfo(repositoryName string, event string, sess *session.
 	queueResult := new(hookEvent.QueueResult)
 	if items["ProjectName"] != nil {
 		queueResult.ProjectName = *items["ProjectName"].S
+		log.Printf("ProjectName set, queueResult: %+v", queueResult)
 	}
 	queueResult.Credential = hookEvent.Credential{}
+	queueResult.Events = []hookEvent.Event{}
 	if items["CredCategory"] != nil {
 		queueResult.Credential.Category = *items["CredCategory"].S
+		log.Printf("CredCategory set, queueResult: %+v", queueResult)
 	}
 	if items["CredKey"] != nil {
 		queueResult.Credential.Key = *items["CredKey"].S
+		log.Printf("Key set, queueResult: %+v", queueResult)
 	}
 	if items["CredSecret"] != nil {
-		queueResult.Credential.Secret = *items["credSecret"].S
+		queueResult.Credential.Secret = *items["CredSecret"].S
+		log.Printf("Secret set, queueResult: %+v", queueResult)
 	}
 	if items["ExecutePath"] != nil {
 		queueResult.ExecutePath = *items["ExecutePath"].S
 	}
 
-	for _, event := range items["Events"].L {
+	log.Printf("Before loop")
+	for _, event := range items["Triggers"].L {
 		value := event.M
 		eventStruct := new(hookEvent.Event)
 		if value["SkipWIP"] != nil {
@@ -95,9 +100,9 @@ func queueHookRegisteredInfo(repositoryName string, event string, sess *session.
 			}
 			eventStruct.PermittedCommentUsers = users
 		}
-		if value["ReBuildComments"] != nil {
+		if value["Comments"] != nil {
 			var comments []string
-			for _, commentList := range value["ReBuildComments"].L {
+			for _, commentList := range value["Comments"].L {
 				comments = append(comments, *commentList.S)
 			}
 			eventStruct.ReBuildComments = comments
@@ -111,7 +116,7 @@ func queueHookRegisteredInfo(repositoryName string, event string, sess *session.
 
 		queueResult.Events = append(queueResult.Events, *eventStruct)
 	}
-
+	log.Printf("queueResult: %+v", queueResult)
 	return queueResult, nil
 }
 
@@ -144,7 +149,7 @@ func response410(reason string) Response {
 }
 
 func HookReceiver(_ context.Context, request events.APIGatewayProxyRequest) (Response, error) {
-	log.Printf("Evnet %+v", request)
+	log.Printf("Event: %v", request)
 
 	gitFlavour, err := getGitHookFlavour(request.Headers)
 	if err != nil {
@@ -157,16 +162,21 @@ func HookReceiver(_ context.Context, request events.APIGatewayProxyRequest) (Res
 	var hookSetter hookEvent.HookSetter
 	switch gitFlavour {
 	case "bitbucket":
-		hookSetter = new(hookSetters.GitHubHookSetter)
+		hookSetter = new(hookSetters.BitBucketHookSetter)
+	default:
+		log.Fatalf("Unknown git flavour")
 	}
 	err = hookSetter.Set(&request, hookEventPtr)
+	if err != nil {
+		log.Printf("Set hook failed, %v", err)
+	}
 
 	log.Printf("hookEvent: %+v\n", hookEventPtr)
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String(os.Getenv("REGION")),
 	}))
 
-	registeredInfo, err := queueHookRegisteredInfo(hookEventPtr.ProjectName, hookEventPtr.Event, sess)
+	registeredInfo, err := queueHookRegisteredInfo(hookEventPtr.RepositoryName, hookEventPtr.Event, sess)
 	if err != nil {
 		return response410("repository not registered"), nil
 	}

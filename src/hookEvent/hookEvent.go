@@ -1,6 +1,8 @@
 package hookEvent
 
-import "github.com/aws/aws-lambda-go/events"
+import (
+	"github.com/aws/aws-lambda-go/events"
+)
 
 type Credential struct {
 	Category string `json:"category"` // bitbucket:oauth

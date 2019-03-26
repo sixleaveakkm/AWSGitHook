@@ -20,18 +20,11 @@ type TokenResponse struct {
 	TokenType    string `json:"token_type"`
 }
 
-var buildKey string
-var token string
-
 type BitBucketConnector struct {
 	HookEventPtr *hookEvent.HookEvent
 }
 
-func (connector *BitBucketConnector) Initialize() {
-	buildKey = os.Getenv("CODEBUILD_BUILD_ID")
-}
-func (connector BitBucketConnector) Connect() {
-	fmt.Printf("connecting to bitbucket...")
+func (connector *BitBucketConnector) Connect() string {
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", "https://bitbucket.org/site/oauth2/access_token", strings.NewReader("grant_type=client_credentials"))
 	if err != nil {
@@ -54,14 +47,12 @@ func (connector BitBucketConnector) Connect() {
 	if err != nil {
 		fmt.Printf("Error read body, %v", err)
 	}
-
 	tokenResponse := new(TokenResponse)
 	err = json.Unmarshal(body, &tokenResponse)
 	if err != nil {
 		fmt.Printf("Error parse json, %v", err)
 	}
-	token = tokenResponse.AccessToken
-	fmt.Printf("Get token succ")
+	return tokenResponse.AccessToken
 }
 
 type CommentContent struct {
@@ -71,8 +62,8 @@ type CommentFormat struct {
 	Content CommentContent `json:"content"`
 }
 
-func (connector BitBucketConnector) Comment(str string) {
-	connector.Connect()
+func (connector *BitBucketConnector) Comment(str string) {
+	token := connector.Connect()
 	fmt.Printf("Post comment: %s", str)
 	commentUrl := "https://api.bitbucket.org/2.0/repositories/" + connector.HookEventPtr.RepositoryShort + "/pullrequests/" + connector.HookEventPtr.PullRequestId + "/comments"
 	client := &http.Client{}
@@ -119,13 +110,13 @@ func (connector BitBucketConnector) BuildStop() {
 }
 
 func (connector BitBucketConnector) UpdateBuildState(state string) {
-	connector.Connect()
+	token := connector.Connect()
 	fmt.Printf("update build state... %s", state)
 	buildStateUrl := connector.HookEventPtr.CommitURL + "/statuses/build"
 	client := &http.Client{}
 	form := url.Values{}
 	form.Add("state", state)
-	form.Add("url", "https://console.aws.amazon.com/codesuite/codebuild/projects/"+connector.HookEventPtr.ProjectName+"/build/"+buildKey+"/log")
+	form.Add("url", "https://console.aws.amazon.com/codesuite/codebuild/projects/"+connector.HookEventPtr.ProjectName+"/build/"+os.Getenv("CODEBUILD_BUILD_ID")+"/log")
 	form.Add("key", "DEPLOY-1") //todo: key is used for separate different build, auto assign
 	req, err := http.NewRequest("POST", buildStateUrl, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -153,5 +144,15 @@ func (connector BitBucketConnector) BuildSucc() {
 }
 
 func (connector BitBucketConnector) GetToken() string {
-	return token
+	return connector.Connect()
+}
+
+func (connector *BitBucketConnector) PrintCloneURL() {
+	token := connector.Connect()
+	path := connector.HookEventPtr.RepositoryName[8:]
+	fmt.Printf("https://x-token-auth:%s@%s.git", token, path)
+}
+
+func (connector BitBucketConnector) PrintExecutePath() {
+	fmt.Print(connector.HookEventPtr.ExecutePath)
 }
