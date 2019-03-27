@@ -33,7 +33,6 @@ func queueHookRegisteredInfo(repositoryName string, event string, sess *session.
 		},
 		TableName: aws.String(os.Getenv("TABLENAME")),
 	}
-	log.Printf("Queue info: \n\tRepository: %s\n\tEvents: %s\n\tTableName: %s", repositoryName, event, os.Getenv("TABLENAME"))
 	result, err := svc.GetItem(input)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
@@ -56,7 +55,6 @@ func queueHookRegisteredInfo(repositoryName string, event string, sess *session.
 		}
 		return nil, errors.New("queue database failed")
 	}
-	log.Printf("result: %+v", result)
 	items := result.Item
 
 	if items == nil {
@@ -149,7 +147,7 @@ func response410(reason string) Response {
 }
 
 func HookReceiver(_ context.Context, request events.APIGatewayProxyRequest) (Response, error) {
-	log.Printf("Event: %v", request)
+	log.Printf("Event: %v", request.Headers["X-Request_UUID"])
 
 	gitFlavour, err := getGitHookFlavour(request.Headers)
 	if err != nil {
@@ -171,7 +169,6 @@ func HookReceiver(_ context.Context, request events.APIGatewayProxyRequest) (Res
 		log.Printf("Set hook failed, %v", err)
 	}
 
-	log.Printf("hookEvent: %+v\n", hookEventPtr)
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String(os.Getenv("REGION")),
 	}))

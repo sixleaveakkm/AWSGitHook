@@ -45,6 +45,8 @@ func main() {
 		gitConn.BuildFail()
 	case "build_succ":
 		gitConn.BuildSucc()
+	case "cleanComment":
+		gitConn.CleanComment()
 	case "comment":
 		gitConn.Comment(os.Args[2])
 	case "cloneURL":

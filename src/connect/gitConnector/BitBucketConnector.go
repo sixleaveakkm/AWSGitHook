@@ -62,6 +62,10 @@ type CommentFormat struct {
 	Content CommentContent `json:"content"`
 }
 
+func (connector *BitBucketConnector) CleanComment() {
+
+}
+
 func (connector *BitBucketConnector) Comment(str string) {
 	token := connector.Connect()
 	fmt.Printf("Post comment: %s\n", str)
@@ -124,7 +128,7 @@ func (connector BitBucketConnector) UpdateBuildState(state string) {
 	client := &http.Client{}
 	form := url.Values{}
 	form.Add("state", state)
-	form.Add("url", url.QueryEscape("https://console.aws.amazon.com/codesuite/codebuild/projects/"+connector.HookEventPtr.ProjectName+"/build/"+os.Getenv("CODEBUILD_BUILD_ID")+"/log"))
+	form.Add("url", "https://ap-northeast-1.console.aws.amazon.com/codesuite/codebuild/projects/"+connector.HookEventPtr.ProjectName+"/build/"+url.QueryEscape(os.Getenv("CODEBUILD_BUILD_ID"))+"/log")
 	form.Add("key", "DEPLOY-1") //todo: key is used for separate different build, auto assign
 	req, err := http.NewRequest("POST", buildStateUrl, strings.NewReader(form.Encode()))
 	if err != nil {

@@ -37,7 +37,7 @@ func (setter *BitBucketHookSetter) setPullRequest(request *events.APIGatewayProx
 	if gojsonq.New().JSONString(request.Body).Find("comment") != nil {
 		hookPtr.Comment = gojsonq.New().JSONString(request.Body).Find("comment.content.raw").(string)
 		log.Println(hookPtr.DestinationBranch)
-		hookPtr.CommentAuthor = gojsonq.New().JSONString(request.Body).Find("actor.uuid").(string)
+		hookPtr.CommentAuthor = gojsonq.New().JSONString(request.Body).Find("actor.username").(string)
 		log.Println(hookPtr.CommentAuthor)
 	}
 }

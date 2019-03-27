@@ -6,6 +6,7 @@ type GitConnector interface {
 	BuildFail()
 	BuildSucc()
 	BuildStop()
+	CleanComment()
 	Comment(string)
 	GetToken() string
 	PrintCloneURL()

@@ -1,7 +1,10 @@
 #!/bin/bash
 
 
-echo "git clone"
+echo "--------------"
+cat git_info.json | jq '.credential="****************"'
+echo "--------------"
+
 cloneURL=`./gitConnector cloneURL`
 PATH=$PATH:`pwd`
 git clone $cloneURL "repo"
