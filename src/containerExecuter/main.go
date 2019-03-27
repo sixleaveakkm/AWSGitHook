@@ -17,6 +17,11 @@ import (
 	"strings"
 )
 
+type Response struct {
+	Message string `json:"message"`
+	Ok      bool   `json:"ok"`
+}
+
 func createFile(hookEventPtr *hookEvent.HookEvent) {
 	bytesArr, err := json.Marshal(hookEventPtr)
 	if err != nil {
@@ -132,21 +137,9 @@ func createFile(hookEventPtr *hookEvent.HookEvent) {
 		log.Fatalf("Error copy file %v", err)
 	}
 
-	//_, err = exec.Command("zip", "/tmp/package.zip", "/tmp/git_info.json", "./bin/gitConnector", "./bin/build.sh").Output()
-	//if err != nil {
-	//	log.Printf("Zip file failed, %v", err)
-	//}
 }
-func ContainerExecuter(_ context.Context, hookEventPtr hookEvent.HookEvent) error {
+func ContainerExecuter(_ context.Context, hookEventPtr hookEvent.HookEvent) (Response, error) {
 	path := hookEventPtr.RepositoryName[8:]
-
-	//var gitConn gitConnector.GitConnector
-	//switch hookEventPtr.GitFlavour {
-	//case "bitbucket":
-	//	gitConn = &gitConnector.BitBucketConnector{
-	//		HookEventPtr: &hookEventPtr,
-	//	}
-	//}
 
 	createFile(&hookEventPtr)
 
@@ -199,7 +192,7 @@ func ContainerExecuter(_ context.Context, hookEventPtr hookEvent.HookEvent) erro
 
 	key := os.Getenv("TRIGGERBUCKET") + "/" + bucketKey
 	builder := codebuild.New(sess)
-	_, err = builder.StartBuild(&codebuild.StartBuildInput{
+	output, err := builder.StartBuild(&codebuild.StartBuildInput{
 		SourceLocationOverride: &key,
 		ProjectName:            &hookEventPtr.ProjectName,
 	})
@@ -207,7 +200,12 @@ func ContainerExecuter(_ context.Context, hookEventPtr hookEvent.HookEvent) erro
 		log.Fatalf("err when start build , %v", err)
 	}
 
-	return nil
+	log.Printf("CodeBuild arn is : %s", *output.Build.Arn)
+
+	return Response{
+		Message: "success",
+		Ok:      true,
+	}, nil
 }
 
 func main() {

@@ -81,6 +81,7 @@ functions:
         - ./bin/containerExecuter
         - ./bin/gitConnector
         - ./bin/outer_build.sh
+    timeout: 20
 # you can add CloudFormation resource templates here
 resources:
   Resources: ${file(./resources/dynamodb.yaml):Resources}

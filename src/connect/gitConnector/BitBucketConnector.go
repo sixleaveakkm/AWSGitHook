@@ -145,7 +145,7 @@ func (connector BitBucketConnector) UpdateBuildState(state string) {
 			fmt.Printf("Error close http response, %v", err)
 		}
 	}()
-	if resp.StatusCode == 201 {
+	if resp.StatusCode == 200 {
 		fmt.Printf("Execute update build success")
 	} else {
 		fmt.Printf("Error update build status, response : %v", resp)

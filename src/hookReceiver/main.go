@@ -147,7 +147,7 @@ func response410(reason string) Response {
 }
 
 func HookReceiver(_ context.Context, request events.APIGatewayProxyRequest) (Response, error) {
-	log.Printf("Event: %v", request.Headers["X-Request_UUID"])
+	log.Printf("Event: %v", request.Headers["X-Request-UUID"])
 
 	gitFlavour, err := getGitHookFlavour(request.Headers)
 	if err != nil {

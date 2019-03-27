@@ -14,12 +14,12 @@ type BitBucketHookSetter struct {
 }
 
 func (setter *BitBucketHookSetter) setPush(request *events.APIGatewayProxyRequest, hookPtr *hookEvent.HookEvent) {
-	hookPtr.SourceBranch = gojsonq.New().JSONString(request.Body).Find("push.changes[0].new.name").(string)
+	hookPtr.SourceBranch = gojsonq.New().JSONString(request.Body).Find("push.changes.[0].new.name").(string)
 	log.Println(hookPtr.SourceBranch)
 	hookPtr.DestinationBranch = hookPtr.SourceBranch
 	log.Println(hookPtr.DestinationBranch)
 
-	hookPtr.CommitURL = gojsonq.New().JSONString(request.Body).Find("push.changes[0].links.commits.href").(string)
+	hookPtr.CommitURL = gojsonq.New().JSONString(request.Body).Find("push.changes.[0].links.commits.href").(string)
 
 }
 
@@ -57,7 +57,7 @@ func (setter *BitBucketHookSetter) Set(request *events.APIGatewayProxyRequest, h
 
 	eventStr := request.Headers["X-Event-Key"]
 	hookPtr.Event = eventStr
-	log.Printf("eventStr ,%T, %v", eventStr, eventStr)
+	log.Printf("eventStr: %v", eventStr)
 	eventArr := strings.Split(eventStr, ":")
 
 	switch eventArr[0] {
