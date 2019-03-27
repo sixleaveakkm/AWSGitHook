@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 echo "git clone"
 cloneURL=`./gitConnector cloneURL`
 PATH=$PATH:`pwd`
@@ -13,16 +14,20 @@ destination_branch=`cat git_info.json | jq .destination | sed -ne "s/\"\(.*\)\"/
 cd repo
 git checkout $destination_branch
 if [[ $trigger_event =~ pullrequest.* ]];then
+	git fetch origin ${source_branch}:${source_branch}
     git merge $source_branch
 fi
 
-gitConnector build_start
-
-bash -x `cat ../git_info.json | jq .ExecutePath | sed -ne "s/\"\(.*\)\"/\1/p"`
+cd ..
+gitConnector build_start; echo "put build start"
+bash_file=`cat ./git_info.json | jq .ExecutePath | sed -ne "s/\"\(.*\)\"/\1/p"`
+cd repo
+bash -x $bash_file
 code=$?
-if (( $? == 0 ));then
-    gitConnector build_succ
+cd ..
+if (( $code == 0 ));then
+    gitConnector build_succ; echo "put build succ"
 else
-    gitConnector build_fail
+    gitConnector build_fail; echo "put build fail"
 fi
 exit $code

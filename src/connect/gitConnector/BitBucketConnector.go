@@ -64,7 +64,7 @@ type CommentFormat struct {
 
 func (connector *BitBucketConnector) Comment(str string) {
 	token := connector.Connect()
-	fmt.Printf("Post comment: %s", str)
+	fmt.Printf("Post comment: %s\n", str)
 	commentUrl := "https://api.bitbucket.org/2.0/repositories/" + connector.HookEventPtr.RepositoryShort + "/pullrequests/" + connector.HookEventPtr.PullRequestId + "/comments"
 	client := &http.Client{}
 	comment := CommentFormat{
@@ -73,26 +73,30 @@ func (connector *BitBucketConnector) Comment(str string) {
 		},
 	}
 	jsonBytes, err := json.Marshal(comment)
+	fmt.Printf("jsonBytes is : %s", jsonBytes)
 	if err != nil {
-		fmt.Printf("Error when format comment json byte, %v", err)
+		fmt.Printf("Error when format comment json byte, %v\n", err)
 	}
 	req, err := http.NewRequest("POST", commentUrl, bytes.NewBuffer(jsonBytes))
 	if err != nil {
-		fmt.Printf("Error creating http post, %v", err)
+		fmt.Printf("Error creating http post, %v\n", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("Error execute http post, %v", err)
+		fmt.Printf("Error execute http post, %v\n", err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			fmt.Printf("Error close http response, %v", err)
+			fmt.Printf("Error close http response, %v\n", err)
 		}
 	}()
 	if resp.StatusCode == 201 {
-		fmt.Printf("Add comment success")
+		fmt.Printf("Add comment success\n")
+	} else {
+		fmt.Printf("Error with respnse: %v", resp)
 	}
 
 }
@@ -112,11 +116,15 @@ func (connector BitBucketConnector) BuildStop() {
 func (connector BitBucketConnector) UpdateBuildState(state string) {
 	token := connector.Connect()
 	fmt.Printf("update build state... %s", state)
-	buildStateUrl := connector.HookEventPtr.CommitURL + "/statuses/build"
+
+	commitUrlArr := strings.Split(connector.HookEventPtr.CommitURL, "/")
+	commitId := commitUrlArr[len(commitUrlArr)-1]
+	buildStateUrl := "https://api.bitbucket.org/2.0/repositories/" + connector.HookEventPtr.RepositoryShort + "/commit/" + commitId + "/statuses/build"
+	fmt.Printf("Build State Url is %s\n", buildStateUrl)
 	client := &http.Client{}
 	form := url.Values{}
 	form.Add("state", state)
-	form.Add("url", "https://console.aws.amazon.com/codesuite/codebuild/projects/"+connector.HookEventPtr.ProjectName+"/build/"+os.Getenv("CODEBUILD_BUILD_ID")+"/log")
+	form.Add("url", url.QueryEscape("https://console.aws.amazon.com/codesuite/codebuild/projects/"+connector.HookEventPtr.ProjectName+"/build/"+os.Getenv("CODEBUILD_BUILD_ID")+"/log"))
 	form.Add("key", "DEPLOY-1") //todo: key is used for separate different build, auto assign
 	req, err := http.NewRequest("POST", buildStateUrl, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -135,6 +143,8 @@ func (connector BitBucketConnector) UpdateBuildState(state string) {
 	}()
 	if resp.StatusCode == 201 {
 		fmt.Printf("Execute update build success")
+	} else {
+		fmt.Printf("Error update build status, response : %v", resp)
 	}
 
 }
