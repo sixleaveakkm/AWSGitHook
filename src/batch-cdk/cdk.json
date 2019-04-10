@@ -1,0 +1,19 @@
+{
+  "app": "node bin/batch-cdk.js",
+  "context": {
+    "batch_env_name": "authBuildBatchEnv",
+    "batch_service_role_name": "authBuildBatchServiceRole",
+    "batch_instance_role_name": "authBuildBatchInstanceRole",
+    "batch_job_role_name": "authBuildBatchJobTaskRole",
+    "spot_fleet_role_name": "authBuildSpotFleetRole",
+    "subnet_cidr": "172.31.91.0/24",
+    "subnet_name": "authBuildEnvSubnet",
+    "security_group_name": "authBuildEnvSG",
+    "network_interface_name": "authBuildEnvNI",
+    "eip_name": "authBuildEIP",
+    "batch_queue_name": "authBuildBatchQueue",
+    "batch_job_definition_name": "authBuildJobDefine",
+    "docker_image_addr": "902887174334.dkr.ecr.ap-northeast-1.amazonaws.com/env-tool/auth:latest",
+    "default_vpc_id": "vpc-fb77059c"
+  }
+}
