@@ -3,7 +3,7 @@ package hookSetters
 import (
 	"errors"
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/sixleaveakkm/AWSGitHook/src/hookEvent"
+	"github.com/sixleaveakkm/AWSGitHook/src/lambda/hookEvent"
 	"github.com/thedevsaddam/gojsonq"
 )
 

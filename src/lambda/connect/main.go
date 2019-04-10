@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	gitConnector "github.com/sixleaveakkm/AWSGitHook/src/connect/gitConnector"
-	"github.com/sixleaveakkm/AWSGitHook/src/hookEvent"
+	"github.com/sixleaveakkm/AWSGitHook/src/lambda/connect/gitConnector"
+	"github.com/sixleaveakkm/AWSGitHook/src/lambda/hookEvent"
 	"io/ioutil"
 	"log"
 	"os"

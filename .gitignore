@@ -11,3 +11,5 @@ src/test
 *.test
 
 .idea
+/docker/gitConnector
+/docker/outer_build.sh

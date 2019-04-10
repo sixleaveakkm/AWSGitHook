@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/sixleaveakkm/AWSGitHook/src/hookEvent"
+	"github.com/sixleaveakkm/AWSGitHook/src/lambda/hookEvent"
 	"io/ioutil"
 	"net/http"
 	"net/url"

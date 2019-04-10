@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/codebuild"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/sixleaveakkm/AWSGitHook/src/hookEvent"
+	"github.com/sixleaveakkm/AWSGitHook/src/lambda/hookEvent"
 	"io"
 	"io/ioutil"
 	"log"
@@ -76,67 +76,6 @@ func createFile(hookEventPtr *hookEvent.HookEvent) {
 	if err != nil {
 		log.Fatalf("Error copy file %v", err)
 	}
-
-	file2, err := os.Open("./bin/gitConnector")
-	if err != nil {
-		log.Fatalf("Error read gitConnector file %v", err)
-	}
-	defer func() {
-		if err := file2.Close(); err != nil {
-			log.Fatalf("Error close gitConnector file %v", err)
-		}
-	}()
-	info, err = file2.Stat()
-	if err != nil {
-		log.Fatalf("Error read file stat, %v", err)
-	}
-	log.Printf("gitConnector length is %d bytes", info.Size())
-	header, err = zip.FileInfoHeader(info)
-	if err != nil {
-		log.Fatalf("Error read file header %v", err)
-	}
-	header.Name = "gitConnector"
-	header.Method = zip.Deflate
-
-	writer, err = zipWriter.CreateHeader(header)
-	if err != nil {
-		log.Fatalf("Error create header file %v", err)
-	}
-	_, err = io.Copy(writer, file2)
-	if err != nil {
-		log.Fatalf("Error copy file %v", err)
-	}
-
-	file3, err := os.Open("./bin/outer_build.sh")
-	if err != nil {
-		log.Fatalf("Error read outer_build file %v", err)
-	}
-	defer func() {
-		if err := file3.Close(); err != nil {
-			log.Fatalf("Error close outer_build file %v", err)
-		}
-	}()
-	info, err = file3.Stat()
-	if err != nil {
-		log.Fatalf("Error read file stat, %v", err)
-	}
-	log.Printf("outer_build length is %d bytes", info.Size())
-	header, err = zip.FileInfoHeader(info)
-	if err != nil {
-		log.Fatalf("Error read file header %v", err)
-	}
-	header.Name = "outer_build"
-	header.Method = zip.Deflate
-
-	writer, err = zipWriter.CreateHeader(header)
-	if err != nil {
-		log.Fatalf("Error create header file %v", err)
-	}
-	_, err = io.Copy(writer, file3)
-	if err != nil {
-		log.Fatalf("Error copy file %v", err)
-	}
-
 }
 func ContainerExecuter(_ context.Context, hookEventPtr hookEvent.HookEvent) (Response, error) {
 	path := hookEventPtr.RepositoryName[8:]
