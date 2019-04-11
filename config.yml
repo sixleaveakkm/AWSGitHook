@@ -1,9 +1,9 @@
+service: GitHookWithBatch
+tableName: GitHookWithBatchRepo
 auth:
-  service: AuthGitHookWithBatch
   triggerBucket: auth-ci-ir-webhook-bucket
   deploymentBucket: auth-ci-ir-serverless-deployment
 
 collabo:
-  service: AuthGitHookWithBatch
   triggerBucket: auth-ci-webhook-bucket
   deploymentBucket: auth-ci-serverless-deployment

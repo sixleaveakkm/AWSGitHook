@@ -1,4 +1,4 @@
-service: ${file(./config.yml):${self:custom.profile}.service}
+service: ${file(config.yml):service}
 frameworkVersion: ">=1.28.0 <2.0.0"
 
 custom:
@@ -52,7 +52,7 @@ provider:
   # you can define service wide environment variables here
   environment:
     TABLENAME: ${self:custom.tableName}
-    REGION: ${self:custom.region}
+    Product: ${self:service}
     TRIGGERBUCKET: ${self:custom.triggerBucket}
 
 package:
