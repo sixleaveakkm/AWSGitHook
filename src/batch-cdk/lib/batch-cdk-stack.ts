@@ -143,5 +143,11 @@ export class BatchCdkStack extends cdk.Stack {
 			},
 			type: "container"
 		});
+
+		new cdk.CfnOutput(this, "AuthBuildWithBatchPublicIP", {
+			description: "The public Ip that auth build batch cluster will use, therefore which is need to be added to BitBucket whitelist",
+			value: eip.eipIp
+		})
+
 	}
 }
