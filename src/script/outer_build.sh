@@ -12,7 +12,7 @@ echo "--------------"
 
 echo "Cloning project"
 cloneURL=`./gitConnector cloneURL`
-git clone $cloneURL "repo"
+git clone "$cloneURL" "repo"
 git config --global user.name "DevBot"
 git config --global user.email "new_auth_dev_bot@worksap.co.jp"
 
@@ -31,14 +31,14 @@ HOOK_PR_ID=""
 
 cd repo
 echo "Git checkout to $destination_branch"
-git checkout $destination_branch
+git checkout "$destination_branch"
 
 if [[ $trigger_event =~ pullrequest.* ]];then
 	HOOK_PR_ID=`cat ../git_info.json | jq .pullRequestContent.pullRequestId | sed -ne "s/\"\(.*\)\"/\1/p"`
 	echo "SET \"HOOK_PR_ID\": $HOOK_PR_ID"
 	echo "Git merge \"$source_branch\" to \"$destination_branch\""
 	git fetch origin ${source_branch}:${source_branch}
-  git merge $source_branch
+	git merge "$source_branch"
 fi
 
 cd ..
@@ -47,7 +47,7 @@ echo "Start execution..."
 bash_file=`cat ./git_info.json | jq .ExecutePath | sed -ne "s/\"\(.*\)\"/\1/p"`
 cd repo
 echo "execute \"$bash_file\""
-bash -ex $bash_file
+bash -ex "$bash_file"
 code=$?
 echo "Execute file exit with code: $code"
 cd ..
@@ -56,4 +56,4 @@ if (( $code == 0 ));then
 else
     gitConnector build_fail; echo "Notice git: build fail"
 fi
-exit $code
+exit "$code"
